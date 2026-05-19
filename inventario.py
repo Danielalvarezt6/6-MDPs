@@ -4,25 +4,56 @@ Para desarrollar el problema del inventario.
 """
 
 from MDPs import MDP, iteracion_valor
+import math
 
 class Inventario(MDP):
     """
-    Clase que representa un MDP para el problema del camión mágico.
+    Clase que representa un MDP para el problema de inventario.
     
-    Si caminas, avanzas 1 con coso 1
-    Si usas el camion, con probabilidad rho avanzas el doble de donde estabas
-    y con probabilidad 1-rho te quedas en el mismo lugar. Todo con costo 2.
-    
-    El objetivo es llegar a la meta en el menor costo posible
+    El gerente decide cuántas unidades pedir para minimizar costos de 
+    almacenamiento y backlogging, maximizando la ganancia.
     
     """    
     
-    def __init__(self, gama,lambda_, ...): #TODO: Agregar lo que se requiera
-        #TODO: Completar el constructor
-        self.gamma = #TODO: Agregar lo que se requiera
-        self.lambda_ = #TODO: Agregar lo que se requiera
-        self.estados = #TODO: Agregar lo que se requiera
-        #TODO: Agregar lo que se requiera
+    def __init__(self, gamma, lambda_, precio_venta=150, costo_compra=80, 
+                 costo_fijo_pedido=40, costo_almacen=5, costo_backlog=15, 
+                 capacidad=20, backlog_max=10, k_max=20):
+        """
+        parámetros:
+        gamma: factor de descuento (0.95)
+        lambda_: media de la demanda poisson (4)
+        precio_venta, costo_compra, costo_fijo_pedido, costo_almacen, costo_backlog
+        capacidad: máxima unidades en almacén (20)
+        backlog_max: límite inferior del inventario (negativo), ej. 10 -> -10
+        k_max: truncamiento de la distribución poisson (probabilidad acumulada ~1)
+        """         
+        # generar espacio de estados: desde -backlog_max hasta capacidad
+        estados = list(range(-backlog_max, capacidad + 1))
+
+        # llamar al constructor de la clase base mdp
+        super().__init__(estados, gamma)
+        
+        # guardar parámetros adicionales
+        self.lambda_ = lambda_
+        self.precio_venta = precio_venta
+        self.costo_compra = costo_compra
+        self.costo_fijo_pedido = costo_fijo_pedido
+        self.costo_almacen = costo_almacen
+        self.costo_backlog = costo_backlog
+        self.capacidad = capacidad
+        self.backlog_max = backlog_max
+        self.k_max = k_max
+
+        # precalcular probabilidades poisson hasta k_max
+        self.poisson_probs = {}
+        total = 0.0
+        for k in range(k_max + 1):
+            p = math.exp(-lambda_) * (lambda_ ** k) / math.factorial(k)
+            self.poisson_probs[k] = p
+            total += p
+        # normalizar para que sume exactamente 1 (aunque la suma ya es muy cercana)
+        for k in self.poisson_probs:
+            self.poisson_probs[k] /= total
     
     def acciones_legales(self, s):
         #TODO: Completar este método

@@ -56,21 +56,80 @@ class Inventario(MDP):
             self.poisson_probs[k] /= total
     
     def acciones_legales(self, s):
-        #TODO: Completar este método
-        pass
-    
-    def recompensa(self, s, a, s_):
-        #TODO: Completar este método
-        pass
-        
-    def prob_transicion(self, s, a, s_):
-        #TODO: Completar este método
-        pass
-                
-    def es_terminal(self, s):
-        #TODO: Completar este método
-        pass
+        """
+        devuelve lista de acciones factibles dado el estado s.
+        la acción es la cantidad a pedir (entero >= 0).
+        restricción: s + a <= capacidad (no exceder almacén al recibir el pedido).
+        """
+        if s > self.capacidad:
+            return [0]  # seguridad, no debería ocurrir
+        max_a = self.capacidad - s
+        return list(range(0, max_a + 1))
 
+    def prob_transicion(self, s, a, s_):
+        """
+        probabilidad de transición de s a s_ con acción a.
+        acumula la probabilidad de la cola en el estado límite inferior.
+        """
+        if s_ not in self.estados:
+            return 0.0
+            
+        d = s + a - s_
+        if d < 0:
+            return 0.0 # no es posible que el inventario crezca sin pedir
+
+        # si el estado de llegada no es el limite inferior (-10)
+        if s_ > -self.backlog_max:
+            return self.poisson_probs.get(d, 0.0)
+            
+        # si el estado de llegada es el límite inferior (-10)
+        # acumulamos la probabilidad de que la demanda sea d o mayor, lo que llevaría a s' <= -10
+        elif s_ == -self.backlog_max:
+            # 1.0 menos la probabilidad de todas las demandas menores a d
+            prob_menores = sum(self.poisson_probs.get(k, 0.0) for k in range(d))
+            return max(0.0, 1.0 - prob_menores)
+
+    def recompensa(self, s, a, s_):
+        """
+        recompensa inmediata por la transición (s, a, s_).
+        se calcula con la demanda d = s + a - s_ (determinística dada la transición).
+        incluye ingresos por ventas, costos de pedido, almacenamiento, backlog
+        y pérdida de oportunidad (margen no ganado).
+        """
+        d = s + a - s_
+        if d < 0:
+            return -1e9  # transición imposible (castigo grande)
+
+        I = s + a
+        ventas = min(d, max(0, I))
+        ingresos = self.precio_venta * ventas
+
+        # costo de pedido
+        if a > 0:
+            costo_pedido = self.costo_fijo_pedido + self.costo_compra * a
+        else:
+            costo_pedido = 0
+
+        # costo de almacenamiento (por inventario final positivo)
+        costo_almacen = self.costo_almacen * max(s_, 0)
+
+        # costo de backlog (por inventario final negativo)
+        costo_backlog = self.costo_backlog * max(-s_, 0)
+
+        # pérdida por demanda no satisfecha en el momento (margen no ganado)
+        margen_unitario = self.precio_venta - self.costo_compra  # 70
+        demanda_no_servida = d - ventas
+        perdida_oportunidad = margen_unitario * demanda_no_servida
+
+        recomp = ingresos - costo_pedido - costo_almacen - costo_backlog - perdida_oportunidad
+        return recomp
+
+    def es_terminal(self, s):
+        """
+        como el ciclo de inventario nunca se acaba y el negocio opera 
+        todos los días, ningún estado es el final. siempre es false.
+        """
+        return False
 
 if __name__ == "__main__":
 

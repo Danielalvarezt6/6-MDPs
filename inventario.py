@@ -126,16 +126,18 @@ class Inventario(MDP):
 
     def es_terminal(self, s):
         """
-        como el ciclo de inventario nunca se acaba y el negocio opera 
-        todos los días, ningún estado es el final. siempre es false.
+        Como el negocio abre todos los días, seguira siendo False.
         """
         return False
 
 if __name__ == "__main__":
+    gamma = 0.95
+    lambda_ = 4
+    epsilon = 1e-4
 
-    inventario = Inventario(0.9, 0.5, ...)  #TODO: Agregar lo que se requiera
+    inventario = Inventario(gamma, lambda_)
 
-    pi_star, V = iteracion_valor(inventario, ...) #TODO: Agregar lo que se requiera
+    pi_star, V = iteracion_valor(inventario, epsilon=epsilon, max_iter=1000, debug=False)
 
     print("-" * 60)
     print("Estado".center(20) + "Acción".center(20) + "Valor".center(20))
@@ -149,12 +151,68 @@ if __name__ == "__main__":
 Contesta las preguntas aquí mismo (has espacio entre las preguntas):
 
 1. ¿Cómo se comporta las transiciones y las ganancias para casos específicos de $s$ y $a$? 
-2. ¿Qué psa si hay mucho almacen? 
+
+   La transición depende de una demanda Poisson con media 4. si pides a unidades,
+   al día siguiente antes de la demanda tienes s + a. luego llega la demanda y el nuevo 
+   estado es s' = s + a - d, pero si se pasa de -10 se acumula ahí. la ganancia de esa 
+   transición se calcula con los ingresos por ventas (150 por unidad vendida),
+   menos el costo fijo de 40 si pediste algo, menos 80 por cada unidad pedida, menos 5 
+   por cada unidad que sobra al final, menos 15 por cada unidad faltante (backlog)
+   y menos 70 por cada unidad que no se pudo vender en el momento (margen perdido).
+   Entonces, si la acción ajusta bien el inventario para que la demanda no deje mucho 
+   sobrante ni mucho faltante, la ganancia es mayor.
+
+2. ¿Qué pasa si hay mucho almacen? 
+
+   si s es alto, digamos 10 o más, ya no conviene pedir porque la acción legal máxima 
+   es poca o cero. En los resultados, para s >= 6 la política dice a = 0. Tiene sentido
+   porque si ya tienes mucho inventario, pedir más solo te genera costo de almacenamiento 
+   (5 por unidad) y el riesgo de que no se venda. Además, si pides aunque sea 1 unidad
+   pagas el costo fijo de 40, que es caro. mejor dejarlo así y que la demanda poco a poco 
+   baje el inventario.
+
 3. ¿Que pasa si hay muy poco o estamos sin almacen? 
+
+   Con s bajo o negativo (backlog) conviene pedir cantidades grandes: se aumenta
+   s + a para cubrir la demanda esperada y reducir backlog (15 por unidad al
+   cierre) y margen perdido. En los resultados, para s entre -10 y 5 la acción
+   óptima cumple s + a = 9: se rellena hasta un nivel objetivo antes de la
+   demanda del día siguiente. Esto es porque el castigo por faltantes es fuerte: 15 de backlog 
+   más 70 de margen perdido, total 85 por cliente no atendido. Conviene pagar el costo fijo de 40 
+   y los 80 por unidad para evitar esas penalizaciones.
+
 4. ¿Existe un punto donde la ganancia sea máxima?  
----
+
+   Cuando la demanda es igual al inventario, se venderia todo sin tener sobrantes
+   ni faltantes, por lo que la ganancia inmediata es máxima. En terminos de la funcion V(s), el valor máximo
+   se alcanza en s = 20, donde V(20) = 5574.14. Esto pasa porque no hay un costo por tener inventario inicial,
+   solo se cobra almacenamiento al final del día, entonces empezar con más inventario ayuda a evitar penalizaciones futuras.
+
 5. ¿Cómo se ve la política óptima? ¿Tiene sentido?
+
+   Para s <= 5 se pide la cantidad que deja s + a = 9; para s >= 6, a = 0. 
+   esta politica tiene sentido porque el costo fijo de pedido es de 40, lo que 
+   desincentiva pedir poco, es mejor esperar a que baje el inventario para pedir y 
+   hacer un pedido grande. El 9 es razonable considerando que la demanda media es 4
+   por lo que cubre la demanda sin generar un exceso de almacenamiento.
+
 6. ¿Como se comporta la función de valor de estado V(s)?
+
+   La función V(s) es creciente en todo el dominio. Desde s = -10 hasta s = 5, el incremento
+   entre estados consecutivos es exactamente 80. Esto se debe a que la política obliga a pedir
+   una unidad adicional para llegar al nivel objetivo, y el costo de compra es 80. A partir de s = 6
+   la política ya no pide nada, y el crecimiento se vuelve más suave, pero sigue siendo positivo.
+   El valor máximo se alcanza en s = 20, donde V(20) = 5574.14.El comportamiento refleja que tener
+   más inventario inicial reduce el riesgo de caer en backlog y pagar penalizaciones.
+
 7. ¿Cómo cambiaría la política si la variabilidad de la demanda (lambda) aumenta de 4 a 8?
 
+   Con lambda=4 la política pedía hasta llegar a 9 y dejaba de pedir desde s=6. con lambda=8
+   el nivel objetivo subió a 13, es decir, para los estados desde -10 hasta 10 la acción es la que
+   completa hasta 13 (por ejemplo, en s=-10 pide 23, en s=0 pide 13, en s=10 pide 3).El punto donde 
+   ya no se pide también se corrió hacia arriba: ahora a=0 para s>=11. Los valores v(s) también son más altos, por ejemplo en s=20 
+   antes era 5574 y ahora es 10804. esto tiene sentido porque la demanda promedio es mayor (8 en lugar de 4) y también hay más variabilidad
+   entonces se necesita más inventario de seguridad para evitar el backlog y la pérdida de margen, que suman 85 por unidad no atendida. 
+   Por eso la política se vuelve más agresiva y el nivel objetivo sube de 9 a 13.
+   
 """
